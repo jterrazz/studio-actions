@@ -15,6 +15,14 @@ on:
         description: Go version to use
         default: "1.24"
         type: string
+      go-version-file:
+        description: File that names the Go version, go.mod for one (replaces go-version when set)
+        default: ""
+        type: string
+      ldflags:
+        description: Linker flags; {tag} becomes the release tag
+        default: ""
+        type: string
       node-version:
         description: Node.js version for the checks (empty skips it)
         default: "24"
@@ -39,7 +47,8 @@ jobs:
         uses: jterrazz/studio-actions/actions/check@main
         with:
           node-version: ${{ inputs.node-version }}
-          go-version: ${{ inputs.go-version }}
+          go-version: ${{ inputs.go-version-file == '' && inputs.go-version || '' }}
+          go-version-file: ${{ inputs.go-version-file }}
           mutation: false
 
   publish:
@@ -53,26 +62,33 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: ${{ inputs.go-version }}
+          go-version: ${{ inputs.go-version-file == '' && inputs.go-version || '' }}
+          go-version-file: ${{ inputs.go-version-file }}
 
       - name: Build binaries
         env:
           TARGETS: ${{ inputs.targets }}
           BINARY: ${{ inputs.binary-name }}
           BUILD_PATH: ${{ inputs.build-path }}
+          LDFLAGS: ${{ inputs.ldflags }}
         run: |
           set -euo pipefail
+          # value: outside the checkout, so the tree stays clean and the binaries are not stamped modified.
+          dist="$RUNNER_TEMP/dist"
+          mkdir -p "$dist"
+          flags="${LDFLAGS//'{tag}'/$GITHUB_REF_NAME}"
           IFS=',' read -ra PAIRS <<< "$TARGETS"
           for pair in "${PAIRS[@]}"; do
             os="${pair%/*}"
             arch="${pair#*/}"
             output="${BINARY}-${os}-${arch}"
             echo "Building ${output}"
-            GOOS="${os}" GOARCH="${arch}" go build -o "dist/${output}" "$BUILD_PATH"
+            GOOS="${os}" GOARCH="${arch}" go build -ldflags "$flags" -o "${dist}/${output}" "$BUILD_PATH"
           done
+          (cd "$dist" && shasum -a 256 * > checksums.txt)
 
       - name: Create release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           generate_release_notes: true
-          files: dist/*
+          files: ${{ runner.temp }}/dist/*

@@ -42,6 +42,7 @@ job in a Deploy run.
 | -------------- | -------------- | ------------------------------------------------------------------------------------------ |
 | `node-version` | `24`           | Sets Node up with an npm cache; an empty string skips it                                   |
 | `go-version`   | empty          | Sets Go up                                                                                 |
+| `go-version-file` | empty | Sets Go up from a file such as `go.mod`; wins over `go-version` |
 | `browsers`     | `false`        | Provisions Playwright chromium, cached by the version the lockfile names                   |
 | `mutation`     | `true`         | Runs the `mutation` target, where the Makefile has one, over the change the event carries  |
 | `dockerfile`   | `Dockerfile`   | The file hadolint reads, when it exists; warnings only for now                             |
@@ -166,7 +167,10 @@ name its trusted publisher names. The publish step is bounded at 4 minutes:
 when the registry degrades, a publish hangs instead of failing.
 
 `publish-go.yaml` checks with Go set up, then cross-compiles `binary-name`
-from `build-path` for each `targets` pair into a GitHub Release.
+from `build-path` for each `targets` pair into `$RUNNER_TEMP/dist`, stamps
+`ldflags` (its `{tag}` becomes the release tag), writes a `checksums.txt` of
+the binaries, and uploads them all to a GitHub Release. `go-version-file`
+(`go.mod`) replaces `go-version` when set.
 
 ## The actions
 

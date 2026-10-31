@@ -11,6 +11,10 @@ on:
         description: Go version to install (empty skips it)
         default: ""
         type: string
+      go-version-file:
+        description: File that names the Go version, go.mod for one (empty skips it)
+        default: ""
+        type: string
       browsers:
         description: Provision Playwright chromium before Test, cached by the version the lockfile names
         default: false
@@ -50,6 +54,7 @@ jobs:
         with:
           node-version: ${{ inputs.node-version }}
           go-version: ${{ inputs.go-version }}
+          go-version-file: ${{ inputs.go-version-file }}
           browsers: ${{ inputs.browsers }}
           mutation: ${{ inputs.mutation }}
           dockerfile: ${{ inputs.dockerfile }}

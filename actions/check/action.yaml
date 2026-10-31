@@ -11,6 +11,9 @@ inputs:
   go-version:
     description: Go version to install (empty skips it)
     default: ""
+  go-version-file:
+    description: File that names the Go version, go.mod for one (empty skips it; Go is set up when this or go-version is set)
+    default: ""
   browsers:
     description: Provision Playwright chromium before Test, cached by the version the lockfile names
     default: "false"
@@ -136,10 +139,12 @@ runs:
       run: npm install --global --silent node-gyp@13.1.0
 
     - name: Set up Go
-      if: inputs.go-version != ''
+      if: inputs.go-version != '' || inputs.go-version-file != ''
       uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
-        go-version: ${{ inputs.go-version }}
+        # outside: setup-go prefers go-version when both are set, so the file wins only if it is emptied.
+        go-version: ${{ inputs.go-version-file == '' && inputs.go-version || '' }}
+        go-version-file: ${{ inputs.go-version-file }}
         cache: false
 
     # invariant: every run saves under its own run_id, so the fallbacks are what restores: this
