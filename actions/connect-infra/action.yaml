@@ -10,7 +10,7 @@ inputs:
   # `deploy: release` environment ships from) with audience https://github.com/jterrazz.
   infisical-identity-id:
     description: Infisical machine identity (OIDC auth) that CI authenticates as
-    default: "d9c2032f-2f4d-4ef4-85be-19df1bc70023"
+    default: "d3585cc2-272d-4b00-8d07-34419166a2ff"
   infisical-project-slug:
     description: Infisical project holding the registry account
     default: "studio-ci"
