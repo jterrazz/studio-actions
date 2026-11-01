@@ -36,8 +36,8 @@ repository.
 ## Always
 
 - Node.js 24, unless a caller says otherwise.
-- An npm package's Publish file keeps the name its npm trusted publisher
-  names (`release.yaml` until the owner moves it to `publish.yaml`).
+- An npm package's Publish file is `publish.yaml`, the name its npm trusted
+  publisher names: renaming it stops publishing.
 - No stored secret: a deploying or publishing job grants `id-token: write`.
 - Every Deploy and Publish checks first; a Deploy reads its summary for the
   verdict, the job logs for the detail.

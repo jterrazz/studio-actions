@@ -23,12 +23,7 @@ workflow it calls, which is why it is one short word: `deploy` gives
 Names, steps and summaries are in English, like the code and GitHub's own
 interface.
 
-## Two exceptions
+## One exception
 
-- **An npm package's Publish file keeps its old name** (`release.yaml`, or
-  `release.yml` in hoverfly-lsp): npm's trusted publishing names the
-  workflow file it trusts, and only the package's owner can move it on
-  npmjs.com. The workflow inside is named Publish; the file is renamed once
-  the trusted publisher names `publish.yaml`.
 - **This repository's own workflow is Self-test**, since `check.yaml` here is
   the shared workflow every caller's Check calls.

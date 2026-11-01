@@ -59,9 +59,9 @@ jobs:
         uses: jterrazz/studio-actions/.github/workflows/publish-npm.yaml@main
 ```
 
-npm's trusted publisher, configured once on npmjs.com, names this file, so
-the `@jterrazz` packages keep theirs as `release.yaml` (named Publish inside)
-until the owner moves each trusted publisher to `publish.yaml`. A Go
+npm's trusted publisher, configured once on npmjs.com by the package's
+owner, names this file: renaming it stops publishing until the trusted
+publisher names the new one. A Go
 tool's Publish runs on `push: { tags: ['v*'] }` with `contents: write` and
 calls `publish-go.yaml` with `binary-name` and `build-path`.
 

@@ -11,12 +11,12 @@ what it does. [Naming](../reference/naming.md) holds the rules.
 Every workflow a repository carries belongs to one of four families, the
 same name in every repository.
 
-| Family  | Caller file   | Runs on                                           | Shared workflow                                        |
-| ------- | ------------- | ------------------------------------------------- | ------------------------------------------------------ |
-| Check   | `check.yaml`  | a pull request; a push to `main` for a library    | `check.yaml`                                           |
-| Deploy  | `deploy.yaml` | a push to `main`, a `v*` tag, the weekly rebuild  | `deploy-docker.yaml`                                   |
-| Publish | `publish.yaml`, `release.yaml` for an npm package | a GitHub Release (npm) or a `v*` tag (Go) | `publish-npm.yaml`, `publish-go.yaml`                  |
-| Watch   | `watch.yaml`  | a schedule                                        | none: a probe is the repository's own                  |
+| Family  | Caller file    | Runs on                                          | Shared workflow                       |
+| ------- | -------------- | ------------------------------------------------ | ------------------------------------- |
+| Check   | `check.yaml`   | a pull request; a push to `main` for a library   | `check.yaml`                          |
+| Deploy  | `deploy.yaml`  | a push to `main`, a `v*` tag, the weekly rebuild | `deploy-docker.yaml`                  |
+| Publish | `publish.yaml` | a GitHub Release (npm) or a `v*` tag (Go)        | `publish-npm.yaml`, `publish-go.yaml` |
+| Watch   | `watch.yaml`   | a schedule                                       | none: a probe is the repository's own |
 
 A Docker app has no Check on a push to `main`: its push is its release, and
 Deploy checks that commit while it builds the image. A library's push to
@@ -38,14 +38,14 @@ cache ("nothing ran") is recorded as cached. Those records become the checks
 table, written to the job's summary in a Check run and handed to the Summary
 job in a Deploy run.
 
-| Input          | Default        | Effect                                                                                     |
-| -------------- | -------------- | ------------------------------------------------------------------------------------------ |
-| `node-version` | `24`           | Sets Node up with an npm cache; an empty string skips it                                   |
-| `go-version`   | empty          | Sets Go up                                                                                 |
-| `go-version-file` | empty | Sets Go up from a file such as `go.mod`; wins over `go-version` |
-| `browsers`     | `false`        | Provisions Playwright chromium, cached by the version the lockfile names                   |
-| `mutation`     | `true`         | Runs the `mutation` target, where the Makefile has one, over the change the event carries  |
-| `dockerfile`   | `Dockerfile`   | The file hadolint reads, when it exists; warnings only for now                             |
+| Input             | Default      | Effect                                                                                    |
+| ----------------- | ------------ | ----------------------------------------------------------------------------------------- |
+| `node-version`    | `24`         | Sets Node up with an npm cache; an empty string skips it                                  |
+| `go-version`      | empty        | Sets Go up                                                                                |
+| `go-version-file` | empty        | Sets Go up from a file such as `go.mod`; wins over `go-version`                           |
+| `browsers`        | `false`      | Provisions Playwright chromium, cached by the version the lockfile names                  |
+| `mutation`        | `true`       | Runs the `mutation` target, where the Makefile has one, over the change the event carries |
+| `dockerfile`      | `Dockerfile` | The file hadolint reads, when it exists; warnings only for now                            |
 
 **Install** is its own pass. A Makefile that installs through a stamp
 (`node_modules/.install`, or a `node_modules` target) installs by that
@@ -118,14 +118,14 @@ cancelled; GitHub keeps the newest pending one, so a run waiting behind a
 deploy gives way to a newer commit. A Verify that finds its namespace already
 running a newer digest reports itself superseded and moves no alias.
 
-| Input        | Default                            | Effect                                                         |
-| ------------ | ---------------------------------- | -------------------------------------------------------------- |
-| `image-name` | required                           | The image, the release and the manifest's `metadata.name`      |
-| `manifest`   | `.infrastructure/application.yaml` | The app's manifest                                             |
-| `dockerfile` | `Dockerfile`                       | Built with the repository root as context                      |
-| `timeout`    | `5m`                               | Helm's wait, headroom for cert-manager on a first deploy       |
-| `mutation`   | `false`                            | Mutation in Check, for an app whose push to `main` is its release |
-| `node-version`, `browsers` | `24`, `false`        | Passed to Check                                                |
+| Input                      | Default                            | Effect                                                            |
+| -------------------------- | ---------------------------------- | ----------------------------------------------------------------- |
+| `image-name`               | required                           | The image, the release and the manifest's `metadata.name`         |
+| `manifest`                 | `.infrastructure/application.yaml` | The app's manifest                                                |
+| `dockerfile`               | `Dockerfile`                       | Built with the repository root as context                         |
+| `timeout`                  | `5m`                               | Helm's wait, headroom for cert-manager on a first deploy          |
+| `mutation`                 | `false`                            | Mutation in Check, for an app whose push to `main` is its release |
+| `node-version`, `browsers` | `24`, `false`                      | Passed to Check                                                   |
 
 A monorepo app points `dockerfile:` and `manifest:` into its own directory
 and scopes its push trigger with `paths:`; the build context stays the root.
@@ -177,21 +177,21 @@ the binaries, and uploads them all to a GitHub Release. `go-version-file`
 
 ## The actions
 
-| Action                                                              | Does                                                                                         |
-| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| [`check`](../../actions/check)                                      | The whole check, recorded as a checks table                                                  |
-| [`plan-deploy`](../../actions/plan-deploy)                          | Resolves the builds and deployments of a Deploy run                                          |
-| [`connect-infra`](../../actions/connect-infra)                      | Reads the registry account from Infisical, joins Tailscale, logs in to the registry          |
-| [`connect-cluster`](../../actions/connect-cluster)                  | Points kubectl and helm at the cluster as the job's GitHub OIDC identity                     |
-| [`build-image`](../../actions/build-image)                          | Builds and pushes `sha-<7>` with Buildx on the runner's tailnet                              |
-| [`scan-image`](../../actions/scan-image)                            | Scans an image with Trivy                                                                    |
-| [`stage-deploy`](../../actions/stage-deploy)                        | Hands Deploy the app chart and the image's digest, so it needs no registry account           |
-| [`deploy-app`](../../actions/deploy-app)                            | Creates the namespace the app owns, then `helm upgrade --install` by digest                  |
-| [`verify-app`](../../actions/verify-app)                            | Waits for the rollout, probes the routes, moves the alias                                    |
-| [`prune-images`](../../actions/prune-images)                        | Deletes old tags, keeping `latest`, three `v*` and five `sha-*` builds                       |
-| [`write-summary`](../../actions/write-summary)                      | Gathers the reports and renders the summary                                                  |
-| [`cache-artifacts`](../../actions/cache-artifacts)                  | The `.artifacts` cache, for a repository whose check is its own                              |
-| [`resolve-mutation-range`](../../actions/resolve-mutation-range)    | The commit a change started from, for a repository whose check is its own                    |
+| Action                                                           | Does                                                                                |
+| ---------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| [`check`](../../actions/check)                                   | The whole check, recorded as a checks table                                         |
+| [`plan-deploy`](../../actions/plan-deploy)                       | Resolves the builds and deployments of a Deploy run                                 |
+| [`connect-infra`](../../actions/connect-infra)                   | Reads the registry account from Infisical, joins Tailscale, logs in to the registry |
+| [`connect-cluster`](../../actions/connect-cluster)               | Points kubectl and helm at the cluster as the job's GitHub OIDC identity            |
+| [`build-image`](../../actions/build-image)                       | Builds and pushes `sha-<7>` with Buildx on the runner's tailnet                     |
+| [`scan-image`](../../actions/scan-image)                         | Scans an image with Trivy                                                           |
+| [`stage-deploy`](../../actions/stage-deploy)                     | Hands Deploy the app chart and the image's digest, so it needs no registry account  |
+| [`deploy-app`](../../actions/deploy-app)                         | Creates the namespace the app owns, then `helm upgrade --install` by digest         |
+| [`verify-app`](../../actions/verify-app)                         | Waits for the rollout, probes the routes, moves the alias                           |
+| [`prune-images`](../../actions/prune-images)                     | Deletes old tags, keeping `latest`, three `v*` and five `sha-*` builds              |
+| [`write-summary`](../../actions/write-summary)                   | Gathers the reports and renders the summary                                         |
+| [`cache-artifacts`](../../actions/cache-artifacts)               | The `.artifacts` cache, for a repository whose check is its own                     |
+| [`resolve-mutation-range`](../../actions/resolve-mutation-range) | The commit a change started from, for a repository whose check is its own           |
 
 An action's logic lives in [`scripts/`](../../scripts), which the action
 reaches through its own path, so it is the same code a unit test runs. A few
