@@ -193,6 +193,9 @@ jobs:
   verify:
     name: Verify · ${{ matrix.target.env }}
     needs: [plan, deploy]
+    # invariant: the implicit success() reads every ancestor, so a schedule's skipped Check
+    # would skip Verify too, and with it the probes and the moved tags.
+    if: ${{ !cancelled() && needs.deploy.result == 'success' }}
     runs-on: ubuntu-26.04-arm
     permissions:
       contents: read
