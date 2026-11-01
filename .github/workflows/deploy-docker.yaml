@@ -110,6 +110,7 @@ jobs:
         uses: jterrazz/studio-actions/actions/connect-infra@main
 
       - name: Build image
+        id: build
         uses: jterrazz/studio-actions/actions/build-image@main
         with:
           image-name: ${{ inputs.image-name }}
@@ -117,6 +118,12 @@ jobs:
           alias: ${{ matrix.build.alias }}
           dockerfile: ${{ inputs.dockerfile }}
           report: build-${{ matrix.build.short }}
+
+      - name: Stage deploy
+        uses: jterrazz/studio-actions/actions/stage-deploy@main
+        with:
+          digest: ${{ steps.build.outputs.digest }}
+          artifact: stage-${{ matrix.build.tag }}
 
   # invariant: scanned once pushed and before any deploy: a blocked image sits in the registry,
   # deployed nowhere and aliased nowhere.
@@ -155,6 +162,11 @@ jobs:
     needs: [plan, check, scan]
     # invariant: a skipped Check is a schedule's, never a failed one's.
     if: ${{ !cancelled() && needs.scan.result == 'success' && (needs.check.result == 'success' || needs.check.result == 'skipped') }}
+    # invariant: the environment's branch policy is the gate on who deploys (main, and v* for a
+    # `deploy: release` one); its token names the environment, not the ref, so this job holds no
+    # registry account: Build staged the chart and the digest.
+    environment:
+      name: ${{ matrix.target.env }}
     runs-on: ubuntu-26.04-arm
     permissions:
       contents: read
@@ -176,6 +188,8 @@ jobs:
 
       - name: Connect to infrastructure
         uses: jterrazz/studio-actions/actions/connect-infra@main
+        with:
+          in-environment: "true"
 
       - name: Connect to the cluster
         uses: jterrazz/studio-actions/actions/connect-cluster@main
@@ -186,6 +200,7 @@ jobs:
           image-name: ${{ inputs.image-name }}
           environment: ${{ matrix.target.env }}
           tag: ${{ matrix.target.tag }}
+          stage: stage-${{ matrix.target.tag }}
           manifest: ${{ inputs.manifest }}
           timeout: ${{ inputs.timeout }}
           report: deploy-${{ matrix.target.env }}

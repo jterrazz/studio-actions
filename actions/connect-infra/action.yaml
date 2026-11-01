@@ -1,5 +1,5 @@
 name: Connect to infrastructure
-description: With the job's GitHub OIDC token alone, read the registry account from Infisical, join the tailnet and log in to the registry
+description: With the job's GitHub OIDC token alone, read the registry account from Infisical, join the tailnet and log in to the registry; a job in a GitHub environment only joins the tailnet
 
 inputs:
   # invariant: the only secrets CI reads from Infisical are the registry account's,
@@ -32,11 +32,27 @@ inputs:
   tailscale-release-audience:
     description: Audience of the Tailscale trust credential for v* tags (not a secret)
     default: "api.tailscale.com/TV53vwCkzz11CNTRL-kEPhPSv9Sk11CNTRL"
+  # invariant: a job declaring `environment:` presents the subject
+  # `repo:jterrazz@18480834/<repo>@<id>:environment:<env>`, which Infisical's identity does not
+  # trust and neither ref credential matches: it joins with a third credential, trusting
+  # `repo:jterrazz@18480834/*:environment:*`, and reads nothing from Infisical. Which refs
+  # may run in an environment is the environment's own branch policy (main, and v* for a
+  # `deploy: release` one).
+  in-environment:
+    description: "true when the calling job declares a GitHub environment: it joins the tailnet only, with the environment credential, and reads no registry account"
+    default: "false"
+  tailscale-environment-client-id:
+    description: Client ID of the Tailscale trust credential for GitHub environments (not a secret)
+    default: "TV53vwCkzz11CNTRL-kQfm637zta11CNTRL"
+  tailscale-environment-audience:
+    description: Audience of the Tailscale trust credential for GitHub environments (not a secret)
+    default: "api.tailscale.com/TV53vwCkzz11CNTRL-kQfm637zta11CNTRL"
 
 runs:
   using: composite
   steps:
     - name: Fetch secrets (GitHub OIDC)
+      if: inputs.in-environment != 'true'
       uses: Infisical/secrets-action@d2e351f16c6ca20d17c85e6c992e04bdeb64e87d # v1.0.18
       with:
         method: oidc
@@ -50,7 +66,8 @@ runs:
     # invariant: no Tailscale secret. The job's GitHub OIDC token is exchanged for a node
     # key through a Tailscale trust credential (workload identity federation)
     # that trusts `repo:jterrazz@18480834/*:ref:refs/heads/main` for tag:ci, or, on a
-    # `v*` tag, the release credential trusting `...:ref:refs/tags/v*`. The client
+    # `v*` tag, the release credential trusting `...:ref:refs/tags/v*`, or, in a GitHub
+    # environment, the environment credential (see `in-environment`). The client
     # IDs and audiences are identifiers, not secrets. The calling job must grant
     # `id-token: write` (every deploying job already does).
     - name: Pick the Tailscale trust credential
@@ -62,9 +79,15 @@ runs:
         MAIN_AUDIENCE: ${{ inputs.tailscale-audience }}
         RELEASE_ID: ${{ inputs.tailscale-release-client-id }}
         RELEASE_AUDIENCE: ${{ inputs.tailscale-release-audience }}
+        IN_ENVIRONMENT: ${{ inputs.in-environment }}
+        ENVIRONMENT_ID: ${{ inputs.tailscale-environment-client-id }}
+        ENVIRONMENT_AUDIENCE: ${{ inputs.tailscale-environment-audience }}
       run: |
         set -euo pipefail
-        if [[ "$REF" == refs/tags/v* ]]; then
+        if [ "$IN_ENVIRONMENT" = "true" ]; then
+          echo "client-id=$ENVIRONMENT_ID" >> "$GITHUB_OUTPUT"
+          echo "audience=$ENVIRONMENT_AUDIENCE" >> "$GITHUB_OUTPUT"
+        elif [[ "$REF" == refs/tags/v* ]]; then
           if [ -z "$RELEASE_ID" ] || [ -z "$RELEASE_AUDIENCE" ]; then
             echo "::error::no Tailscale trust credential for v* tags: set tailscale-release-client-id and tailscale-release-audience"
             exit 1
@@ -91,6 +114,7 @@ runs:
     # target from tailscaled itself, and the pair pinned in /etc/hosts. Nothing
     # is hardcoded: a repave that renames the node changes only the CNAME.
     - name: Resolve the registry over the tailnet
+      if: inputs.in-environment != 'true'
       shell: bash
       env:
         REGISTRY: ${{ inputs.registry }}
@@ -111,6 +135,7 @@ runs:
         exit 1
 
     - name: Log in to registry
+      if: inputs.in-environment != 'true'
       uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
       with:
         registry: ${{ inputs.registry }}

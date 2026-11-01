@@ -102,6 +102,21 @@ refuses. The app owns `.infrastructure/application.yaml`, with a `deploy:`
 [deploy contract](https://github.com/jterrazz/studio-infrastructure/blob/main/docs/reference/deploy-contract.md).
 Each route's `smoke` block there is what Verify probes after a rollout.
 
+Each environment of the manifest is also a GitHub environment of the
+repository (`shared` for a shared app), and its deployment branch policy is
+the gate on who deploys: `main` alone for a `deploy: push` one, `main` and
+the tag pattern `v*` for a `deploy: release` one, since its weekly rebuild
+runs from `main`. Create it before the first deploy; a Deploy job naming a
+missing environment creates it with no policy at all:
+
+```sh
+gh api -X PUT repos/jterrazz/<repo>/environments/<env> \
+  -F 'deployment_branch_policy[protected_branches]=false' \
+  -F 'deployment_branch_policy[custom_branch_policies]=true'
+gh api -X POST repos/jterrazz/<repo>/environments/<env>/deployment-branch-policies \
+  -f name=main -f type=branch
+```
+
 Stagger the schedule's minute across apps. The weekly rebuild takes a
 floating base tag's patches (`node:24-alpine`) within a week, for about
 three runner minutes an app on a private repository's quota; a fix to a

@@ -98,12 +98,15 @@ Plan ─┬─ Check ───────────────────�
 - **Check** runs `actions/check` beside the build: the image builds while the
   tests run, and deploys only if both pass.
 - **Build** pushes the image as `sha-<7>`, the commit it was built from, with
-  its OCI labels, and records its digest, size and base.
+  its OCI labels, and records its digest, size and base. It then stages the
+  deploy: the app chart, pulled once, and that digest, as an artifact.
   Its layers come from GitHub's cache, one scope per image, so a push that
   keeps the lockfile skips both `npm ci` layers.
 - **Scan** reads that image with Trivy before anything deploys it.
 - **Deploy · \<env\>** rolls it out with `helm upgrade --install`, by digest,
-  one job per environment.
+  one job per environment, inside the GitHub environment of that name: its
+  branch policy decides which refs deploy, and the job's history is the
+  environment's. It reads nothing from the registry, only what Build staged.
 - **Verify · \<env\>** waits for the rollout, then probes every route as its
   `studio.jterrazz.com/smoke-*` annotations say. Only then does the alias
   (`latest`, or the `v*` tag) move onto the digest, so an image that failed
@@ -182,6 +185,7 @@ the binaries, and uploads them all to a GitHub Release. `go-version-file`
 | [`connect-cluster`](../../actions/connect-cluster)                  | Points kubectl and helm at the cluster as the job's GitHub OIDC identity                     |
 | [`build-image`](../../actions/build-image)                          | Builds and pushes `sha-<7>` with Buildx on the runner's tailnet                              |
 | [`scan-image`](../../actions/scan-image)                            | Scans an image with Trivy                                                                    |
+| [`stage-deploy`](../../actions/stage-deploy)                        | Hands Deploy the app chart and the image's digest, so it needs no registry account           |
 | [`deploy-app`](../../actions/deploy-app)                            | Creates the namespace the app owns, then `helm upgrade --install` by digest                  |
 | [`verify-app`](../../actions/verify-app)                            | Waits for the rollout, probes the routes, moves the alias                                    |
 | [`prune-images`](../../actions/prune-images)                        | Deletes old tags, keeping `latest`, three `v*` and five `sha-*` builds                       |
@@ -194,7 +198,9 @@ reaches through its own path, so it is the same code a unit test runs. A few
 facts behind the actions:
 
 - **connect-infra** joins Tailscale through the trust credential for its ref
-  (`main`, or a `v*` tag), then resolves the registry's CNAME over the
+  (`main`, or a `v*` tag), or, in a job that declares a GitHub environment,
+  through the environment credential, reading nothing from Infisical. It then
+  resolves the registry's CNAME over the
   tailnet and pins it in `/etc/hosts`: the runner's resolver sometimes never
   chases it.
 - **build-image** runs Buildx with `network=host`, so buildkit resolves the

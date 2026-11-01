@@ -20,6 +20,14 @@ credential matches one subject (the comments in
 `actions/connect-infra/action.yaml` own the exact subjects). A pull request's
 run, or a branch's, is trusted by none of them, so it cannot deploy.
 
+The Deploy job declares a GitHub environment, which turns its token's subject
+into `repo:…:environment:<env>`. Tailscale trusts it through a third
+credential, for every environment; the environment's branch policy is what
+limits it to `main` and `v*`. Infisical does not trust it, so that job holds
+no registry account: Build stages the chart and the digest for it. The
+cluster reads the token's `ref` and owner, not its subject, so it admits the
+job as before.
+
 `registry-credentials`, the pull secret a pod mounts, is never handed to the
 chart: the Infisical operator syncs it into the namespace. What an app's own
 runtime secrets are, and where they live (`/<app>` in project
@@ -28,7 +36,3 @@ runtime secrets are, and where they live (`/<app>` in project
 `publish-npm.yaml` hands `npm publish` no token either: its publish job grants
 `id-token: write`, which provenance signs with and npm's trusted publishing
 authenticates with.
-
-No job declares a GitHub `environment:` yet. Declaring one turns the token's
-subject into `repo:…:environment:<env>`, which none of the three trusts
-today; the move needs their subjects changed first, by the owner.

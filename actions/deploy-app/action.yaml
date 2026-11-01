@@ -1,5 +1,5 @@
 name: Deploy app
-description: Roll an image out to one environment with helm upgrade --install against the shared app chart, by digest
+description: Roll an image out to one environment with helm upgrade --install against the shared app chart, by digest, from what stage-deploy handed over; it reads nothing from the registry
 
 inputs:
   registry:
@@ -12,7 +12,10 @@ inputs:
     description: The environment to deploy; `shared` is a shared app's one release
     required: true
   tag:
-    description: The immutable tag to deploy (sha-<7>), resolved to its digest
+    description: The immutable tag to deploy (sha-<7>), recorded in the report
+    required: true
+  stage:
+    description: Name of the artifact stage-deploy uploaded for that tag (the chart and the digest)
     required: true
   manifest:
     description: Path to the Helm values manifest
@@ -40,22 +43,19 @@ runs:
       with:
         version: "v4.3.1"
 
-    - name: Log in to the chart registry
-      shell: bash
-      env:
-        REGISTRY: ${{ inputs.registry }}
-      run: |
-        # hazard: read from the environment, never interpolated into the script text by an expression.
-        printf '%s' "$DOCKER_REGISTRY_PASSWORD" | helm registry login "$REGISTRY" \
-          --username "$DOCKER_REGISTRY_USERNAME" --password-stdin
+    - name: Download the stage
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      with:
+        name: ${{ inputs.stage }}
+        path: ${{ runner.temp }}/studio-stage
 
     # invariant: `github.repository` is the CALLING repository even through a reusable workflow,
     # which is the point: the app chart stamps it on the Deployment as
     # `studio.jterrazz.com/repository`, the one place the cluster records which repository rebuilds
     # a workload, read by studio-infrastructure's `make redeploy-apps`.
     #
-    # The chart is handed NO credential: `registry-credentials` is synced into the namespace by the
-    # Infisical operator.
+    # The chart is handed NO credential, and the job holds none: `registry-credentials` is synced
+    # into the namespace by the Infisical operator.
     #
     # hazard: the namespace and its RoleBinding come BEFORE helm, and helm gets no
     # `--create-namespace`. The repository owns a namespace only through the
@@ -95,7 +95,9 @@ runs:
           scope_label="studio.jterrazz.com/environment: $ENVIRONMENT"
         fi
         echo "namespace=$ns" >> "$GITHUB_OUTPUT"
-        DIGEST=$(docker buildx imagetools inspect "$REGISTRY/$IMAGE:$TAG" --format '{{json .Manifest}}' | jq -r .digest)
+        stage="$RUNNER_TEMP/studio-stage"
+        DIGEST=$(cat "$stage/digest")
+        chart=$(ls "$stage"/app-*.tgz)
         report="$RUNNER_TEMP/studio-report/deploy-$ENVIRONMENT.json"
         mkdir -p "$RUNNER_TEMP/studio-report"
         jq -n --arg env "$ENVIRONMENT" --arg ns "$ns" --arg tag "$TAG" --arg digest "$DIGEST" \
@@ -139,7 +141,7 @@ runs:
             name: github:$GITHUB_REPOSITORY
         EOF
         helm upgrade --install "$ns" \
-          "oci://$REGISTRY/charts/app" \
+          "$chart" \
           -f "$MANIFEST" \
           --set environment="$ENVIRONMENT" \
           --set spec.image="$REGISTRY/$IMAGE@$DIGEST" \
